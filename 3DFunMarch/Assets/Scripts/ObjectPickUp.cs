@@ -1,11 +1,11 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace EasyPeasyFirstPersonController
 {
     /// <summary>
     /// Attach this script to the Player GameObject.
     /// Requires: FirstPersonController on the same GameObject.
-    /// Ball requires: Rigidbody + SphereCollider, Layer = ballLayer
+    /// Ball requires: Rigidbody + SphereCollider + BallThrower, Layer = ballLayer
     /// </summary>
     public class ObjectPickUp : MonoBehaviour
     {
@@ -24,6 +24,7 @@ namespace EasyPeasyFirstPersonController
 
         // Interner Zustand
         private Rigidbody heldBall;
+        private BallThrower heldBallThrower;
         private FirstPersonController fpsController;
 
         // Highlight-Tracking
@@ -37,7 +38,6 @@ namespace EasyPeasyFirstPersonController
 
         private void Update()
         {
-            // Kein Highlight-Check nötig wenn bereits ein Ball gehalten wird
             if (heldBall == null)
             {
                 UpdateHighlight();
@@ -54,8 +54,6 @@ namespace EasyPeasyFirstPersonController
             }
         }
 
-        // Prüft jeden Frame ob der Raycast einen aufnehmbaren Ball trifft
-        // und tauscht das Material entsprechend aus bzw. setzt es zurück
         private void UpdateHighlight()
         {
             Transform cam = fpsController.playerCamera;
@@ -65,7 +63,6 @@ namespace EasyPeasyFirstPersonController
             {
                 Renderer hitRenderer = hit.collider.GetComponent<Renderer>();
 
-                // Neues Objekt angeschaut → altes zurücksetzen, neues highlighten
                 if (hitRenderer != null && hitRenderer != currentHighlightedRenderer)
                 {
                     ClearHighlight();
@@ -74,7 +71,6 @@ namespace EasyPeasyFirstPersonController
             }
             else
             {
-                // Kein aufnehmbares Objekt im Blick → Highlight entfernen
                 ClearHighlight();
             }
         }
@@ -84,7 +80,6 @@ namespace EasyPeasyFirstPersonController
             currentHighlightedRenderer = rend;
             originalMaterials = rend.materials;
 
-            // Alle Material-Slots mit dem Highlight-Material befüllen
             Material[] highlighted = new Material[originalMaterials.Length];
             for (int i = 0; i < highlighted.Length; i++)
                 highlighted[i] = highlightMaterial;
@@ -111,10 +106,11 @@ namespace EasyPeasyFirstPersonController
                 Rigidbody rb = hit.rigidbody;
                 if (rb != null)
                 {
-                    // Highlight entfernen bevor der Ball aufgenommen wird
                     ClearHighlight();
 
                     heldBall = rb;
+                    heldBallThrower = rb.GetComponent<BallThrower>();
+
                     heldBall.isKinematic = true;
                     heldBall.transform.SetParent(grabPoint);
                     heldBall.transform.localPosition = Vector3.zero;
@@ -137,7 +133,12 @@ namespace EasyPeasyFirstPersonController
             heldBall.linearVelocity = Vector3.zero;
             heldBall.AddForce(cam.forward * throwForce, ForceMode.Impulse);
 
+            // Werfer auf dem Ball registrieren
+            if (heldBallThrower != null)
+                heldBallThrower.SetThrower(gameObject);
+
             heldBall = null;
+            heldBallThrower = null;
         }
     }
 }
