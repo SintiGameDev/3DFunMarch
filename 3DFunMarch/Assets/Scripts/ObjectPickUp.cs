@@ -3,9 +3,8 @@ using UnityEngine;
 namespace EasyPeasyFirstPersonController
 {
     /// <summary>
-    /// Attach this script to the Player GameObject.
-    /// Requires: FirstPersonController on the same GameObject.
-    /// Ball requires: Rigidbody + SphereCollider + BallThrower, Layer = ballLayer
+    /// Attach to the Player GameObject.
+    /// Ball-Positionierung wird an NetworkBallSync delegiert – kein SetParent mehr.
     /// </summary>
     public class ObjectPickUp : MonoBehaviour
     {
@@ -22,12 +21,11 @@ namespace EasyPeasyFirstPersonController
         [Tooltip("Material das angezeigt wird wenn der Spieler den Ball ansieht")]
         public Material highlightMaterial;
 
-        // Interner Zustand
         private Rigidbody heldBall;
         private BallThrower heldBallThrower;
+        private NetworkBallSync heldBallSync;
         private FirstPersonController fpsController;
 
-        // Highlight-Tracking
         private Renderer currentHighlightedRenderer;
         private Material[] originalMaterials;
 
@@ -47,8 +45,6 @@ namespace EasyPeasyFirstPersonController
             }
             else
             {
-                CarryBall();
-
                 if (Input.GetMouseButtonUp(0))
                     ThrowBall();
             }
@@ -62,7 +58,6 @@ namespace EasyPeasyFirstPersonController
             if (Physics.Raycast(ray, out RaycastHit hit, pickupRange, ballLayer))
             {
                 Renderer hitRenderer = hit.collider.GetComponent<Renderer>();
-
                 if (hitRenderer != null && hitRenderer != currentHighlightedRenderer)
                 {
                     ClearHighlight();
@@ -90,7 +85,6 @@ namespace EasyPeasyFirstPersonController
         private void ClearHighlight()
         {
             if (currentHighlightedRenderer == null) return;
-
             currentHighlightedRenderer.materials = originalMaterials;
             currentHighlightedRenderer = null;
             originalMaterials = null;
@@ -104,41 +98,46 @@ namespace EasyPeasyFirstPersonController
             if (Physics.Raycast(ray, out RaycastHit hit, pickupRange, ballLayer))
             {
                 Rigidbody rb = hit.rigidbody;
-                if (rb != null)
-                {
-                    ClearHighlight();
+                if (rb == null) return;
 
-                    heldBall = rb;
-                    heldBallThrower = rb.GetComponent<BallThrower>();
+                ClearHighlight();
 
-                    heldBall.isKinematic = true;
-                    heldBall.transform.SetParent(grabPoint);
-                    heldBall.transform.localPosition = Vector3.zero;
-                    heldBall.transform.localRotation = Quaternion.identity;
-                }
+                heldBall        = rb;
+                heldBallThrower = rb.GetComponent<BallThrower>();
+                heldBallSync    = rb.GetComponent<NetworkBallSync>();
+
+                // Physik lokal einfrieren
+                heldBall.isKinematic = true;
+
+                // Netzwerk: Pickup melden – NetworkBallSync übernimmt die Positionierung
+                if (heldBallSync != null)
+                    heldBallSync.RequestPickup(grabPoint, gameObject);
+
+                if (heldBallThrower != null)
+                    heldBallThrower.SetThrower(gameObject);
             }
-        }
-
-        private void CarryBall()
-        {
-            heldBall.transform.localPosition = Vector3.zero;
         }
 
         private void ThrowBall()
         {
             Transform cam = fpsController.playerCamera;
+            Vector3 force = cam.forward * throwForce;
 
-            heldBall.transform.SetParent(null);
+            // Lokal freigeben
             heldBall.isKinematic = false;
             heldBall.linearVelocity = Vector3.zero;
-            heldBall.AddForce(cam.forward * throwForce, ForceMode.Impulse);
+            heldBall.AddForce(force, ForceMode.Impulse);
 
-            // Werfer auf dem Ball registrieren
+            // Netzwerk: Wurf melden
+            if (heldBallSync != null)
+                heldBallSync.RequestThrow(force);
+
             if (heldBallThrower != null)
                 heldBallThrower.SetThrower(gameObject);
 
-            heldBall = null;
+            heldBall        = null;
             heldBallThrower = null;
+            heldBallSync    = null;
         }
     }
 }
