@@ -15,8 +15,8 @@ namespace EasyPeasyFirstPersonController
         public LayerMask ballLayer;
 
         [Header("Hold Position")]
-        [Tooltip("Offset vom Camera-Transform: z.B. (0, -0.2, 0.8)")]
-        public Vector3 holdOffset = new Vector3(0f, -0.2f, 0.8f);
+        [Tooltip("Child-Transform der Kamera – definiert wo der Ball gehalten wird")]
+        public Transform grabPoint;
 
         // Interner Zustand
         private Rigidbody heldBall;
@@ -60,8 +60,8 @@ namespace EasyPeasyFirstPersonController
                 {
                     heldBall = rb;
                     heldBall.isKinematic = true;
-                    heldBall.transform.SetParent(cam);
-                    heldBall.transform.localPosition = holdOffset;
+                    heldBall.transform.SetParent(grabPoint);
+                    heldBall.transform.localPosition = Vector3.zero;
                     heldBall.transform.localRotation = Quaternion.identity;
                 }
             }
@@ -69,9 +69,7 @@ namespace EasyPeasyFirstPersonController
 
         private void CarryBall()
         {
-            // Position wird über SetParent + localPosition gehalten.
-            // Alternativ: Smoothdamp für weichere Bewegung (optional).
-            heldBall.transform.localPosition = holdOffset;
+            heldBall.transform.localPosition = Vector3.zero;
         }
 
         private void ThrowBall()

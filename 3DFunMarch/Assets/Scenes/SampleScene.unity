@@ -826,7 +826,7 @@ MonoBehaviour:
   throwForce: 15
   ballLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 8
   holdOffset: {x: 0, y: -0.2, z: 0.8}
 --- !u!114 &6865571279315344528
 MonoBehaviour:
