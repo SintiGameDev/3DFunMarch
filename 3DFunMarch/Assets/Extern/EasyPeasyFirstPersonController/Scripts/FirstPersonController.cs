@@ -1,8 +1,10 @@
 namespace EasyPeasyFirstPersonController
 {
     using UnityEngine;
+    using Unity.Netcode; // WICHTIG: Netcode Namespace hinzugefügt
 
-    public partial class FirstPersonController : MonoBehaviour
+    // WICHTIG: Vererbung von MonoBehaviour auf NetworkBehaviour geändert
+    public partial class FirstPersonController : NetworkBehaviour
     {
         [Header("Settings")]
         public float walkSpeed = 3f;
@@ -95,8 +97,8 @@ namespace EasyPeasyFirstPersonController
             targetCameraY = standingCameraHeight;
             originalCamY = standingCameraHeight;
 
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            // HINWEIS: Cursor-Logik in OnNetworkSpawn verschoben, 
+            // damit sie nur für den lokalen Spieler ausgeführt wird.
 
             characterController = GetComponent<CharacterController>();
             standingCharacterControllerHeight = characterController.height;
@@ -108,8 +110,31 @@ namespace EasyPeasyFirstPersonController
             currentState.EnterState();
         }
 
+        // NEU: Diese Methode wird vom NetworkManager aufgerufen, sobald das Objekt im Netzwerk existiert
+        public override void OnNetworkSpawn()
+        {
+            if (IsOwner)
+            {
+                // Nur der lokale Spieler sperrt den Mauszeiger
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+            }
+            else
+            {
+                // Deaktiviere die Kameras und AudioListener der anderen Mitspieler im Netzwerk
+                if (playerCamera != null)
+                {
+                    playerCamera.gameObject.SetActive(false);
+                }
+            }
+        }
+
         private void Update()
         {
+            // WICHTIG: Wenn dieses Objekt nicht dem lokalen Spieler gehört, brich die Update-Schleife ab.
+            // Verhindert, dass Spieler 1 den Charakter von Spieler 2 steuert.
+            if (!IsOwner) return;
+
             isGrounded = Physics.CheckSphere(groundCheck.position, 0.2f, groundMask, QueryTriggerInteraction.Ignore);
 
             currentState.UpdateState();
@@ -157,6 +182,7 @@ namespace EasyPeasyFirstPersonController
                 cameraParent.localPosition = new Vector3(cameraParent.localPosition.x, newY, cameraParent.localPosition.z);
             }
         }
+
         public bool HasCeiling()
         {
             float radius = characterController.radius * 0.9f;
@@ -165,6 +191,7 @@ namespace EasyPeasyFirstPersonController
 
             return Physics.SphereCast(origin, radius, Vector3.up, out _, checkDistance, groundMask, QueryTriggerInteraction.Ignore);
         }
+
         public bool CheckLedge(out Vector3 climbPosition)
         {
             climbPosition = Vector3.zero;
@@ -190,6 +217,7 @@ namespace EasyPeasyFirstPersonController
 
         private void OnTriggerEnter(Collider other)
         {
+            if (!IsOwner) return; // Trigger-Logik nur für den Besitzer
             if (((1 << other.gameObject.layer) & waterMask) != 0)
             {
                 isInWater = true;
@@ -198,11 +226,11 @@ namespace EasyPeasyFirstPersonController
 
         private void OnTriggerExit(Collider other)
         {
+            if (!IsOwner) return; // Trigger-Logik nur für den Besitzer
             if (((1 << other.gameObject.layer) & waterMask) != 0)
             {
                 isInWater = false;
             }
         }
-
     }
 }
